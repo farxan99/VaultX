@@ -1,0 +1,448 @@
+@startuml VaultX_Bank_Class_Diagram
+
+skinparam classAttributeIconSize 0
+skinparam classFontSize 10
+skinparam packageStyle rectangle
+
+title VaultX Bank Management System - Class Diagram
+
+' ==================== PACKAGES ====================
+package "com.bank.brewdreamwelcome" {
+  
+  ' ==================== ENUMS ====================
+  enum AccountType {
+    SAVINGS
+    CURRENT
+    FIXED_DEPOSIT
+    --
+    +getDisplayName(): String
+    +toString(): String
+  }
+  
+  enum TransactionType {
+    DEPOSIT
+    WITHDRAW
+    TRANSFER_IN
+    TRANSFER_OUT
+    OPEN_ACCOUNT
+    CLOSE_ACCOUNT
+  }
+  
+  enum Role {
+    ADMIN
+    CUSTOMER
+  }
+  
+  ' ==================== MODEL CLASSES ====================
+  class Customer {
+    -id: String
+    -name: String
+    -email: String
+    -phone: String
+    -address: String
+    -createdAt: LocalDate
+    --
+    +Customer(id, name, email, phone, address)
+    +getId(): String
+    +getName(): String
+    +setName(name: String): void
+    +getEmail(): String
+    +setEmail(email: String): void
+    +getPhone(): String
+    +setPhone(phone: String): void
+    +getAddress(): String
+    +setAddress(address: String): void
+    +getCreatedAt(): LocalDate
+    +toString(): String
+  }
+  
+  class BankAccount {
+    -accountNumber: String
+    -customer: Customer
+    -type: AccountType
+    -balance: double
+    -active: boolean
+    -openedAt: LocalDate
+    -closedAt: LocalDate
+    -branchName: String
+    --
+    +BankAccount(accountNumber, customer, type, initialBalance, branchName)
+    +getAccountNumber(): String
+    +getCustomer(): Customer
+    +getType(): AccountType
+    +getBalance(): double
+    +setBalance(balance: double): void
+    +isActive(): boolean
+    +setActive(active: boolean): void
+    +getOpenedAt(): LocalDate
+    +getClosedAt(): LocalDate
+    +setClosedAt(closedAt: LocalDate): void
+    +getBranchName(): String
+    +setBranchName(branchName: String): void
+    +toString(): String
+  }
+  
+  class BankTransaction {
+    -id: String
+    -type: TransactionType
+    -fromAccount: String
+    -toAccount: String
+    -amount: double
+    -timestamp: LocalDateTime
+    -description: String
+    --
+    +BankTransaction(id, type, fromAccount, toAccount, amount, description)
+    +getId(): String
+    +getType(): TransactionType
+    +getFromAccount(): String
+    +getToAccount(): String
+    +getAmount(): double
+    +getTimestamp(): LocalDateTime
+    +getDescription(): String
+  }
+  
+  ' ==================== SERVICE CLASSES ====================
+  class AuthService {
+    {static} +authenticate(identifier: String, password: String): AuthResult
+    {static} +registerCustomer(username, name, email, phone, address, password, accountType): Integer
+    {static} +getCustomerAccountId(customerId: Integer): String
+    {static} +changeCustomerPassword(customerId, oldPassword, newPassword): boolean
+    {static} +changeAdminPassword(username, oldPassword, newPassword): boolean
+    {static} -initializeDatabase(): void
+    {static} -createDefaultAdmins(con: Connection): void
+    {static} -createDefaultUsers(con: Connection): void
+    {static} -isValidAdmin(username: String, password: String): boolean
+    {static} -findCustomerId(identifier: String, password: String): Integer
+    {static} -generateAccountId(con: Connection): String
+    {static} -accountIdExists(accountId: String): boolean
+  }
+  
+  class AuthResult {
+    +role: Role
+    +customerId: Integer
+    --
+    -AuthResult(role: Role, customerId: Integer)
+  }
+  
+  class PasswordValidator {
+    {static} +validate(password: String): ValidationResult
+    --
+    +ValidationResult
+    +isValid(): boolean
+    +getErrorMessage(): String
+  }
+  
+  class BankDatabaseService {
+    {static} -INSTANCE: BankDatabaseService
+    --
+    +getInstance(): BankDatabaseService
+    +getCustomerAccounts(customerId: Integer): List<BankAccount>
+    +getCustomerTotalBalance(customerId: Integer): double
+    +getCustomerAccountTypes(customerId: Integer): String
+    +getCustomerTransactions(customerId: Integer): List<BankTransaction>
+    +getCustomerTransactionsTodayCount(customerId: Integer): long
+    +findAccount(accountNumber: String): BankAccount
+    +deposit(accountNumber: String, amount: double, description: String): boolean
+    +withdraw(accountNumber: String, amount: double, description: String): boolean
+    +transfer(fromAccount: String, toAccount: String, amount: double, description: String): boolean
+    +openAccount(customerId: Integer, type: AccountType, initialDeposit: double, branchName: String): BankAccount
+    -generateAccountNumber(): String
+    -generateTransactionId(con: Connection): String
+  }
+  
+  class BankService {
+    {static} -INSTANCE: BankService
+    -customers: List<Customer>
+    -accounts: List<BankAccount>
+    -transactions: List<BankTransaction>
+    --
+    +getInstance(): BankService
+    +createCustomer(name, email, phone, address): Customer
+    +updateCustomer(customer, name, email, phone, address): void
+    +deleteCustomer(customer: Customer): void
+    +getCustomers(): List<Customer>
+    +openAccount(customer, type, initialDeposit, branchName): BankAccount
+    +closeAccount(account: BankAccount): boolean
+    +getAccounts(): List<BankAccount>
+    +updateAccountBranch(account: BankAccount, branchName: String): void
+    +deleteAccount(account: BankAccount): boolean
+    +findAccount(accountNumber: String): BankAccount
+    +deposit(account: BankAccount, amount: double, description: String): boolean
+    +withdraw(account: BankAccount, amount: double, description: String): boolean
+    +transfer(from: BankAccount, to: BankAccount, amount: double, description: String): boolean
+    +getTransactions(): List<BankTransaction>
+    +getTotalBalance(): double
+    +getTotalAccounts(): int
+    +getTotalActiveAccounts(): int
+    +getTotalCustomers(): int
+    +getTransactionsTodayCount(): long
+    +getTodayNetFlow(): double
+  }
+  
+  ' ==================== DATABASE CLASSES ====================
+  class DatabaseUtil {
+    {static} -URL: String
+    {static} -USER: String
+    {static} -PASSWORD: String
+    --
+    {static} +getConnection(): Connection
+  }
+  
+  ' ==================== UTILITY CLASSES ====================
+  class LoggerUtil {
+    {static} -logger: Logger
+    --
+    {static} +getLogger(): Logger
+    {static} +info(message: String): void
+    {static} +warn(message: String): void
+    {static} +error(message: String, throwable: Throwable): void
+    {static} +debug(message: String): void
+  }
+  
+  class VaultXTheme {
+    {static} +PRIMARY_RED: Color
+    {static} +SECONDARY_BLUE: Color
+    --
+    {static} +paintBackgroundImage(g2: Graphics2D, component: Component): void
+  }
+  
+  ' ==================== UI FRAME CLASSES ====================
+  class WelcomeApp {
+    {static} +main(args: String[]): void
+  }
+  
+  class SplashScreenWindow {
+    -progressBar: JProgressBar
+    -fadeIn: float
+    -timer: Timer
+    --
+    +showSplash(callback: Runnable): void
+    -drawStaticVaultXLogo(g2: Graphics2D, x: int, y: int): void
+  }
+  
+  class WelcomeFrame {
+    -fadeIn: float
+    -animationTimer: Timer
+    --
+    +WelcomeFrame()
+    -createContent(): void
+    -startFadeAnimation(): void
+  }
+  
+  class LoginFrame {
+    -emailField: JTextField
+    -passwordField: JPasswordField
+    -errorLabel: JLabel
+    -captchaTextLabel: JLabel
+    -captchaInputField: JTextField
+    -captchaCode: String
+    -fadeIn: float
+    -animationTimer: Timer
+    --
+    +LoginFrame()
+    -handleLogin(): void
+    -generateCaptcha(): void
+    -createPasswordFieldWithToggle(placeholder: String): JPanel
+  }
+  
+  class SignupFrame {
+    -nameField: JTextField
+    -emailField: JTextField
+    -usernameField: JTextField
+    -passwordField: JPasswordField
+    -confirmPasswordField: JPasswordField
+    -errorLabel: JLabel
+    -captchaTextLabel: JLabel
+    -captchaInputField: JTextField
+    -captchaCode: String
+    -accountTypeGroup: ButtonGroup
+    -savingsRadio: JRadioButton
+    -currentRadio: JRadioButton
+    -fixedDepositRadio: JRadioButton
+    -fadeIn: float
+    -animationTimer: Timer
+    --
+    +SignupFrame()
+    -handleSignup(): void
+    -generateCaptcha(): void
+    -createPasswordFieldWithToggle(placeholder: String): JPanel
+  }
+  
+  class ForgotPasswordFrame {
+    -emailField: JTextField
+    -errorLabel: JLabel
+    -successLabel: JLabel
+    -captchaTextLabel: JLabel
+    -captchaInputField: JTextField
+    -captchaCode: String
+    -fadeIn: float
+    -animationTimer: Timer
+    --
+    +ForgotPasswordFrame()
+    -handlePasswordReset(): void
+    -generateCaptcha(): void
+  }
+  
+  class AdminDashboardFrame {
+    -bankService: BankService
+    -adminUsername: String
+    -root: JPanel
+    -sidebar: JPanel
+    -contentCards: JPanel
+    -cardLayout: CardLayout
+    -totalCustomersLabel: JLabel
+    -totalAccountsLabel: JLabel
+    -totalBalanceLabel: JLabel
+    -todayTxLabel: JLabel
+    -accountsModel: DefaultTableModel
+    -accountsTable: JTable
+    -customersModel: DefaultTableModel
+    -customersTable: JTable
+    -txModel: DefaultTableModel
+    -txTable: JTable
+    -fadeIn: float
+    -fadeTimer: Timer
+    --
+    +AdminDashboardFrame()
+    +AdminDashboardFrame(adminUsername: String)
+    -createSidebar(): void
+    -createContent(): void
+    -createDashboardPanel(): JPanel
+    -createAccountsPanel(): JPanel
+    -createCustomersPanel(): JPanel
+    -createTransactionsPanel(): JPanel
+    -refreshAllData(): void
+    -createEyeIconButton(): JButton
+    -createEyeIcon(): Icon
+    -createHideIcon(): Icon
+  }
+  
+  class CustomerDashboardFrame {
+    -bankService: BankDatabaseService
+    -customerId: Integer
+    -customerAccountId: String
+    -root: JPanel
+    -sidebar: JPanel
+    -contentCards: JPanel
+    -cardLayout: CardLayout
+    -myBalanceLabel: JLabel
+    -accountTypesLabel: JLabel
+    -todayTxLabel: JLabel
+    -txModel: DefaultTableModel
+    -txTable: JTable
+    -fadeIn: float
+    -fadeTimer: Timer
+    --
+    +CustomerDashboardFrame(customerId: Integer)
+    -createSidebar(): void
+    -createContent(): void
+    -createDashboardPanel(): JPanel
+    -createTransactionsPanel(): JPanel
+    -createMakeTransactionPanel(): JPanel
+    -refreshAllData(): void
+    -refreshMetrics(): void
+    -refreshTransactionsTable(): void
+    -getMyAccounts(): List<BankAccount>
+    -createEyeIconButton(): JButton
+    -createEyeIcon(): Icon
+    -createHideIcon(): Icon
+  }
+}
+
+' ==================== RELATIONSHIPS ====================
+
+' Model Relationships
+BankAccount "1" *-- "1" Customer : belongs to
+BankAccount "1" --> "1" AccountType : has type
+BankTransaction "1" --> "1" TransactionType : has type
+BankTransaction "0..1" --> "0..1" BankAccount : from account
+BankTransaction "0..1" --> "0..1" BankAccount : to account
+
+' Service Relationships
+AuthService --> AuthResult : returns
+AuthService --> Role : uses
+AuthService --> PasswordValidator : uses
+AuthService --> DatabaseUtil : uses
+AuthService --> BankDatabaseService : uses
+AuthService --> AccountType : uses
+
+PasswordValidator --> PasswordValidator.ValidationResult : returns
+
+BankDatabaseService --> BankAccount : manages
+BankDatabaseService --> BankTransaction : manages
+BankDatabaseService --> AccountType : uses
+BankDatabaseService --> DatabaseUtil : uses
+BankDatabaseService --> LoggerUtil : uses
+
+BankService --> Customer : manages
+BankService --> BankAccount : manages
+BankService --> BankTransaction : manages
+BankService --> AccountType : uses
+BankService --> TransactionType : uses
+
+' UI Relationships
+WelcomeApp --> SplashScreenWindow : creates
+WelcomeApp --> WelcomeFrame : creates
+WelcomeFrame --> LoginFrame : navigates to
+LoginFrame --> SignupFrame : navigates to
+LoginFrame --> ForgotPasswordFrame : navigates to
+LoginFrame --> AuthService : uses
+LoginFrame --> AdminDashboardFrame : creates
+LoginFrame --> CustomerDashboardFrame : creates
+
+SignupFrame --> AuthService : uses
+SignupFrame --> PasswordValidator : uses
+SignupFrame --> AccountType : uses
+
+ForgotPasswordFrame --> AuthService : uses
+
+AdminDashboardFrame --> BankService : uses
+AdminDashboardFrame --> VaultXTheme : uses
+
+CustomerDashboardFrame --> BankDatabaseService : uses
+CustomerDashboardFrame --> AuthService : uses
+CustomerDashboardFrame --> VaultXTheme : uses
+
+' Database Relationships
+DatabaseUtil --> Connection : creates
+BankDatabaseService --> Connection : uses
+
+' Utility Relationships
+LoggerUtil --> Logger : uses
+VaultXTheme --> Graphics2D : uses
+
+note right of AuthService
+  Handles authentication for
+  both Admin and Customer users.
+  Supports multi-identifier login:
+  - Account ID (6-digit)
+  - Email
+  - Username
+end note
+
+note right of BankDatabaseService
+  Database-backed service for
+  account and transaction operations.
+  All data persisted in MySQL.
+end note
+
+note right of BankService
+  In-memory service (legacy).
+  Used by AdminDashboard for
+  some operations.
+end note
+
+note right of CustomerDashboardFrame
+  Customer-specific dashboard with
+  limited access. Can only view
+  and manage own accounts.
+end note
+
+note right of AdminDashboardFrame
+  Full administrative access to
+  all customers, accounts, and
+  transactions.
+end note
+
+@enduml
+

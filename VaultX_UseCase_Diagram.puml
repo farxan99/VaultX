@@ -1,0 +1,223 @@
+@startuml VaultX_Bank_UseCase_Diagram
+
+!define RECTANGLE class
+
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #E8F4F8
+  BorderColor #2E86AB
+  FontColor #000000
+}
+skinparam actor {
+  BackgroundColor #F4A261
+  BorderColor #E76F51
+  FontColor #000000
+}
+
+title VaultX Bank Management System - Use Case Diagram
+
+' ==================== ACTORS ====================
+actor Admin as admin
+actor Customer as customer
+actor System as system
+
+' ==================== ADMIN USE CASES ====================
+package "Admin Functions" {
+  usecase "Login" as UC_AdminLogin
+  usecase "View Dashboard" as UC_AdminDashboard
+  usecase "View Total Customers" as UC_ViewCustomers
+  usecase "View Total Accounts" as UC_ViewAccounts
+  usecase "View Total Balance" as UC_ViewBalance
+  usecase "View Today's Activity" as UC_ViewActivity
+  
+  usecase "Manage Customers" as UC_ManageCustomers
+  usecase "Add Customer" as UC_AddCustomer
+  usecase "Edit Customer" as UC_EditCustomer
+  usecase "Delete Customer" as UC_DeleteCustomer
+  usecase "View Customer Details" as UC_ViewCustomerDetails
+  
+  usecase "Manage Accounts" as UC_ManageAccounts
+  usecase "Open Account" as UC_OpenAccount
+  usecase "Close Account" as UC_CloseAccount
+  usecase "Edit Account" as UC_EditAccount
+  usecase "Delete Account" as UC_DeleteAccount
+  usecase "View Account Details" as UC_ViewAccountDetails
+  
+  usecase "Process Transactions" as UC_ProcessTransactions
+  usecase "Deposit Money" as UC_Deposit
+  usecase "Withdraw Money" as UC_Withdraw
+  usecase "Transfer Money" as UC_Transfer
+  
+  usecase "View All Transactions" as UC_ViewAllTransactions
+  usecase "Filter Transactions" as UC_FilterTransactions
+  usecase "View Transaction History" as UC_TransactionHistory
+  
+  usecase "Logout" as UC_AdminLogout
+}
+
+' ==================== CUSTOMER USE CASES ====================
+package "Customer Functions" {
+  usecase "Register / Sign Up" as UC_Register
+  usecase "Select Account Type" as UC_SelectAccountType
+  usecase "Login" as UC_CustomerLogin
+  usecase "View Dashboard" as UC_CustomerDashboard
+  usecase "View Account Balance" as UC_ViewBalance
+  usecase "View Account Types" as UC_ViewAccountTypes
+  usecase "View Today's Activity" as UC_ViewCustomerActivity
+  
+  usecase "View Account Information" as UC_ViewAccountInfo
+  usecase "Reveal Account Number" as UC_RevealAccountNumber
+  usecase "Reveal Account Balance" as UC_RevealBalance
+  
+  usecase "View Transactions" as UC_ViewTransactions
+  usecase "View Transaction History" as UC_ViewTransactionHistory
+  
+  usecase "Make Transaction" as UC_MakeTransaction
+  usecase "Deposit Money" as UC_CustomerDeposit
+  usecase "Withdraw Money" as UC_CustomerWithdraw
+  usecase "Transfer Money" as UC_CustomerTransfer
+  
+  usecase "Change Password" as UC_ChangePassword
+  usecase "Forgot Password" as UC_ForgotPassword
+  usecase "Logout" as UC_CustomerLogout
+}
+
+' ==================== SYSTEM USE CASES ====================
+package "System Functions" {
+  usecase "Validate Password Strength" as UC_ValidatePassword
+  usecase "Hash Password" as UC_HashPassword
+  usecase "Authenticate User" as UC_Authenticate
+  usecase "Generate Account ID" as UC_GenerateAccountID
+  usecase "Generate Account Number" as UC_GenerateAccountNumber
+  usecase "Validate CAPTCHA" as UC_ValidateCAPTCHA
+  usecase "Generate CAPTCHA" as UC_GenerateCAPTCHA
+  usecase "Store Transaction" as UC_StoreTransaction
+  usecase "Update Balance" as UC_UpdateBalance
+  usecase "Check Account Balance" as UC_CheckBalance
+  usecase "Validate Account" as UC_ValidateAccount
+}
+
+' ==================== ADMIN RELATIONSHIPS ====================
+admin --> UC_AdminLogin
+admin --> UC_AdminDashboard
+admin --> UC_ViewCustomers
+admin --> UC_ViewAccounts
+admin --> UC_ViewBalance
+admin --> UC_ViewActivity
+
+admin --> UC_ManageCustomers
+UC_ManageCustomers <.. UC_AddCustomer : <<include>>
+UC_ManageCustomers <.. UC_EditCustomer : <<include>>
+UC_ManageCustomers <.. UC_DeleteCustomer : <<include>>
+UC_ManageCustomers <.. UC_ViewCustomerDetails : <<include>>
+
+admin --> UC_ManageAccounts
+UC_ManageAccounts <.. UC_OpenAccount : <<include>>
+UC_ManageAccounts <.. UC_CloseAccount : <<include>>
+UC_ManageAccounts <.. UC_EditAccount : <<include>>
+UC_ManageAccounts <.. UC_DeleteAccount : <<include>>
+UC_ManageAccounts <.. UC_ViewAccountDetails : <<include>>
+
+admin --> UC_ProcessTransactions
+UC_ProcessTransactions <.. UC_Deposit : <<include>>
+UC_ProcessTransactions <.. UC_Withdraw : <<include>>
+UC_ProcessTransactions <.. UC_Transfer : <<include>>
+
+admin --> UC_ViewAllTransactions
+admin --> UC_FilterTransactions
+admin --> UC_TransactionHistory
+admin --> UC_AdminLogout
+
+' ==================== CUSTOMER RELATIONSHIPS ====================
+customer --> UC_Register
+UC_Register <.. UC_SelectAccountType : <<include>>
+customer --> UC_CustomerLogin
+customer --> UC_CustomerDashboard
+customer --> UC_ViewBalance
+customer --> UC_ViewAccountTypes
+customer --> UC_ViewCustomerActivity
+
+customer --> UC_ViewAccountInfo
+UC_ViewAccountInfo <.. UC_RevealAccountNumber : <<extend>>
+UC_ViewAccountInfo <.. UC_RevealBalance : <<extend>>
+
+customer --> UC_ViewTransactions
+customer --> UC_ViewTransactionHistory
+
+customer --> UC_MakeTransaction
+UC_MakeTransaction <.. UC_CustomerDeposit : <<include>>
+UC_MakeTransaction <.. UC_CustomerWithdraw : <<include>>
+UC_MakeTransaction <.. UC_CustomerTransfer : <<include>>
+
+customer --> UC_ChangePassword
+customer --> UC_ForgotPassword
+customer --> UC_CustomerLogout
+
+' ==================== SYSTEM RELATIONSHIPS ====================
+UC_Register ..> UC_ValidatePassword : <<include>>
+UC_Register ..> UC_HashPassword : <<include>>
+UC_Register ..> UC_GenerateAccountID : <<include>>
+UC_Register ..> UC_GenerateAccountNumber : <<include>>
+UC_Register ..> UC_ValidateCAPTCHA : <<include>>
+
+UC_AdminLogin ..> UC_Authenticate : <<include>>
+UC_AdminLogin ..> UC_ValidateCAPTCHA : <<include>>
+UC_CustomerLogin ..> UC_Authenticate : <<include>>
+UC_CustomerLogin ..> UC_ValidateCAPTCHA : <<include>>
+
+UC_CustomerDeposit ..> UC_UpdateBalance : <<include>>
+UC_CustomerDeposit ..> UC_StoreTransaction : <<include>>
+UC_CustomerWithdraw ..> UC_CheckBalance : <<include>>
+UC_CustomerWithdraw ..> UC_UpdateBalance : <<include>>
+UC_CustomerWithdraw ..> UC_StoreTransaction : <<include>>
+UC_CustomerTransfer ..> UC_CheckBalance : <<include>>
+UC_CustomerTransfer ..> UC_ValidateAccount : <<include>>
+UC_CustomerTransfer ..> UC_UpdateBalance : <<include>>
+UC_CustomerTransfer ..> UC_StoreTransaction : <<include>>
+
+UC_Deposit ..> UC_UpdateBalance : <<include>>
+UC_Deposit ..> UC_StoreTransaction : <<include>>
+UC_Withdraw ..> UC_CheckBalance : <<include>>
+UC_Withdraw ..> UC_UpdateBalance : <<include>>
+UC_Withdraw ..> UC_StoreTransaction : <<include>>
+UC_Transfer ..> UC_CheckBalance : <<include>>
+UC_Transfer ..> UC_ValidateAccount : <<include>>
+UC_Transfer ..> UC_UpdateBalance : <<include>>
+UC_Transfer ..> UC_StoreTransaction : <<include>>
+
+UC_ChangePassword ..> UC_ValidatePassword : <<include>>
+UC_ChangePassword ..> UC_HashPassword : <<include>>
+
+UC_GenerateCAPTCHA ..> system : <<uses>>
+
+' ==================== NOTES ====================
+note right of UC_Register
+  Customer selects account type
+  (Savings, Current, or Fixed Deposit)
+  Account is automatically created
+end note
+
+note right of UC_RevealAccountNumber
+  Account number is hidden by default
+  (shown as ************)
+  Customer can reveal it with button
+end note
+
+note right of UC_Authenticate
+  Supports login via:
+  - Account ID (6-digit)
+  - Email
+  - Username
+end note
+
+note right of UC_ValidatePassword
+  Password requirements:
+  - Minimum 8 characters
+  - At least 1 uppercase
+  - At least 1 lowercase
+  - At least 1 digit
+  - At least 1 special character
+end note
+
+@enduml
+

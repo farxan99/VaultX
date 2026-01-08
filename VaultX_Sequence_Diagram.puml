@@ -1,0 +1,389 @@
+@startuml VaultX_Bank_Sequence_Diagram
+
+skinparam sequenceMessageAlign center
+skinparam roundcorner 20
+skinparam maxmessagesize 60
+skinparam sequenceParticipant underline
+
+title VaultX Bank Management System - Sequence Diagrams
+
+' ==================== REGISTRATION SEQUENCE ====================
+== Customer Registration ==
+
+actor Customer
+participant "SignupFrame" as Signup
+participant "PasswordValidator" as Validator
+participant "AuthService" as Auth
+participant "BankDatabaseService" as BankDB
+participant "Database" as DB
+
+Customer -> Signup: Fill registration form\n(Name, Email, Username, Account Type, Password)
+Customer -> Signup: Click "Sign Up"
+
+Signup -> Signup: Validate form fields
+Signup -> Signup: Validate CAPTCHA
+
+Signup -> Validator: validate(password)
+Validator -> Validator: Check password strength\n(8+ chars, uppercase, lowercase,\ndigit, special char)
+Validator --> Signup: ValidationResult
+
+alt Password valid
+    Signup -> Auth: registerCustomer(username, name,\nemail, phone, address, password, accountType)
+    Auth -> DB: INSERT INTO customers\n(account_id, username, name, email, password)
+    DB -> DB: Generate 6-digit account_id
+    DB -> DB: Hash password with BCrypt
+    DB --> Auth: customerId (generated)
+    
+    Auth -> BankDB: openAccount(customerId, accountType, 0.0, "Main Branch")
+    BankDB -> DB: INSERT INTO accounts\n(account_number, customer_id, account_type, balance)
+    DB -> DB: Generate account_number (AC-XXXXX)
+    DB --> BankDB: account created
+    BankDB --> Auth: BankAccount
+    
+    Auth --> Signup: customerId (success)
+    Signup -> Signup: Show success message
+    Signup -> Signup: Navigate to LoginFrame
+else Password invalid
+    Validator --> Signup: ValidationResult (error message)
+    Signup -> Customer: Show error message
+end
+
+' ==================== LOGIN SEQUENCE ====================
+== User Login (Admin/Customer) ==
+
+actor User
+participant "LoginFrame" as Login
+participant "AuthService" as Auth
+participant "Database" as DB
+participant "AdminDashboardFrame" as AdminDash
+participant "CustomerDashboardFrame" as CustomerDash
+participant "BankDatabaseService" as BankDB
+
+User -> Login: Enter identifier\n(Account ID / Email / Username)
+User -> Login: Enter password
+User -> Login: Enter CAPTCHA
+User -> Login: Click "Login"
+
+Login -> Login: Validate CAPTCHA
+
+alt CAPTCHA valid
+    Login -> Auth: authenticate(identifier, password)
+    
+    Auth -> DB: SELECT password FROM admins\nWHERE username = ?
+    DB --> Auth: hashedPassword
+    
+    alt Admin found
+        Auth -> Auth: BCrypt.checkpw(password, hashedPassword)
+        alt Password correct
+            Auth --> Login: AuthResult(ADMIN, null)
+            Login -> AdminDash: new AdminDashboardFrame(username)
+            AdminDash -> AdminDash: Load dashboard data
+            AdminDash --> User: Display admin dashboard
+        else Password incorrect
+            Auth --> Login: null
+            Login -> User: Show error "Invalid credentials"
+        end
+    else Admin not found
+        Auth -> DB: SELECT id, password FROM customers\nWHERE account_id = ? OR email = ? OR username = ?
+        DB --> Auth: customerId, hashedPassword
+        
+        alt Customer found
+            Auth -> Auth: BCrypt.checkpw(password, hashedPassword)
+            alt Password correct
+                Auth --> Login: AuthResult(CUSTOMER, customerId)
+                Login -> CustomerDash: new CustomerDashboardFrame(customerId)
+                CustomerDash -> BankDB: getCustomerAccounts(customerId)
+                BankDB -> DB: SELECT * FROM accounts\nWHERE customer_id = ?
+                DB --> BankDB: accounts list
+                BankDB --> CustomerDash: List<BankAccount>
+                CustomerDash -> CustomerDash: Load dashboard data
+                CustomerDash --> User: Display customer dashboard
+            else Password incorrect
+                Auth --> Login: null
+                Login -> User: Show error "Invalid credentials"
+            end
+        else Customer not found
+            Auth --> Login: null
+            Login -> User: Show error "Invalid credentials"
+        end
+    end
+else CAPTCHA invalid
+    Login -> User: Show error "Incorrect CAPTCHA"
+end
+
+' ==================== CUSTOMER TRANSACTION SEQUENCE ====================
+== Customer Makes Deposit ==
+
+actor Customer
+participant "CustomerDashboardFrame" as Dash
+participant "BankDatabaseService" as BankDB
+participant "Database" as DB
+
+Customer -> Dash: Navigate to "Make Transaction"
+Customer -> Dash: Select "Deposit"
+Customer -> Dash: Enter amount
+Customer -> Dash: Enter description
+Customer -> Dash: Click "Process Transaction"
+
+Dash -> Dash: Get first active account
+Dash -> BankDB: deposit(accountNumber, amount, description)
+
+BankDB -> DB: BEGIN TRANSACTION
+BankDB -> DB: SELECT balance FROM accounts\nWHERE account_number = ? AND is_active = TRUE
+DB --> BankDB: current balance
+
+alt Account exists and active
+    BankDB -> DB: UPDATE accounts\nSET balance = balance + ?\nWHERE account_number = ?
+    DB --> BankDB: rows updated
+    
+    BankDB -> DB: INSERT INTO transactions\n(transaction_id, transaction_type, to_account, amount, description)
+    DB -> DB: Generate transaction_id (T-XXXXX)
+    DB --> BankDB: transaction recorded
+    
+    BankDB -> DB: COMMIT TRANSACTION
+    BankDB --> Dash: true (success)
+    
+    Dash -> Dash: Refresh all data
+    Dash -> BankDB: getCustomerTotalBalance(customerId)
+    BankDB -> DB: SELECT SUM(balance) FROM accounts\nWHERE customer_id = ? AND is_active = TRUE
+    DB --> BankDB: total balance
+    BankDB --> Dash: balance amount
+    
+    Dash -> Dash: Update metrics display
+    Dash -> Customer: Show success message\n"Deposit successful"
+else Account not found or inactive
+    BankDB -> DB: ROLLBACK TRANSACTION
+    BankDB --> Dash: false (failure)
+    Dash -> Customer: Show error message
+end
+
+' ==================== CUSTOMER WITHDRAWAL SEQUENCE ====================
+== Customer Makes Withdrawal ==
+
+actor Customer
+participant "CustomerDashboardFrame" as Dash
+participant "BankDatabaseService" as BankDB
+participant "Database" as DB
+
+Customer -> Dash: Select "Withdraw"
+Customer -> Dash: Enter amount
+Customer -> Dash: Enter description
+Customer -> Dash: Click "Process Transaction"
+
+Dash -> BankDB: withdraw(accountNumber, amount, description)
+
+BankDB -> DB: BEGIN TRANSACTION
+BankDB -> DB: SELECT balance FROM accounts\nWHERE account_number = ? AND is_active = TRUE
+DB --> BankDB: current balance
+
+alt Balance sufficient
+    BankDB -> BankDB: Validate: amount <= balance
+    BankDB -> DB: UPDATE accounts\nSET balance = balance - ?\nWHERE account_number = ?
+    DB --> BankDB: rows updated
+    
+    BankDB -> DB: INSERT INTO transactions\n(transaction_id, transaction_type, from_account, amount, description)
+    DB --> BankDB: transaction recorded
+    
+    BankDB -> DB: COMMIT TRANSACTION
+    BankDB --> Dash: true (success)
+    
+    Dash -> Dash: Refresh all data
+    Dash -> Customer: Show success message\n"Withdrawal successful"
+else Insufficient balance
+    BankDB -> DB: ROLLBACK TRANSACTION
+    BankDB --> Dash: false (failure)
+    Dash -> Customer: Show error "Insufficient balance"
+end
+
+' ==================== CUSTOMER TRANSFER SEQUENCE ====================
+== Customer Transfers Money ==
+
+actor Customer
+participant "CustomerDashboardFrame" as Dash
+participant "BankDatabaseService" as BankDB
+participant "Database" as DB
+
+Customer -> Dash: Select "Transfer"
+Customer -> Dash: Enter destination account number
+Customer -> Dash: Enter amount
+Customer -> Dash: Enter description
+Customer -> Dash: Click "Process Transaction"
+
+Dash -> BankDB: findAccount(toAccountNumber)
+BankDB -> DB: SELECT * FROM accounts\nWHERE account_number = ? AND is_active = TRUE
+DB --> BankDB: destination account
+
+alt Destination account exists
+    Dash -> BankDB: transfer(fromAccountNumber, toAccountNumber, amount, description)
+    
+    BankDB -> DB: BEGIN TRANSACTION
+    BankDB -> DB: SELECT balance FROM accounts\nWHERE account_number = ? AND is_active = TRUE
+    DB --> BankDB: source balance
+    
+    alt Source balance sufficient
+        BankDB -> DB: UPDATE accounts\nSET balance = balance - ?\nWHERE account_number = ? (from)
+        DB --> BankDB: source updated
+        
+        BankDB -> DB: UPDATE accounts\nSET balance = balance + ?\nWHERE account_number = ? (to)
+        DB --> BankDB: destination updated
+        
+        BankDB -> DB: INSERT INTO transactions\n(TRANSFER_OUT, from_account, to_account, amount)
+        DB --> BankDB: debit transaction
+        
+        BankDB -> DB: INSERT INTO transactions\n(TRANSFER_IN, from_account, to_account, amount)
+        DB --> BankDB: credit transaction
+        
+        BankDB -> DB: COMMIT TRANSACTION
+        BankDB --> Dash: true (success)
+        
+        Dash -> Dash: Refresh all data
+        Dash -> Customer: Show success message\n"Transfer successful"
+    else Insufficient balance
+        BankDB -> DB: ROLLBACK TRANSACTION
+        BankDB --> Dash: false (failure)
+        Dash -> Customer: Show error "Insufficient balance"
+    end
+else Destination account not found
+    BankDB --> Dash: null
+    Dash -> Customer: Show error "Destination account not found"
+end
+
+' ==================== ADMIN ACCOUNT MANAGEMENT SEQUENCE ====================
+== Admin Opens New Account ==
+
+actor Admin
+participant "AdminDashboardFrame" as AdminDash
+participant "BankService" as BankService
+participant "Database" as DB
+
+Admin -> AdminDash: Navigate to "Accounts" tab
+Admin -> AdminDash: Click "Open Account"
+
+AdminDash -> AdminDash: Show account creation dialog
+Admin -> AdminDash: Select customer
+Admin -> AdminDash: Select account type
+Admin -> AdminDash: Enter initial deposit
+Admin -> AdminDash: Enter branch name
+Admin -> AdminDash: Click "Create"
+
+AdminDash -> BankService: openAccount(customer, type, initialDeposit, branchName)
+BankService -> BankService: Generate account_number (AC-XXXXX)
+BankService -> BankService: Create BankAccount object
+BankService -> BankService: recordTransaction(OPEN_ACCOUNT)
+
+alt Initial deposit > 0
+    BankService -> BankService: deposit(account, initialDeposit, "Initial deposit")
+end
+
+BankService --> AdminDash: BankAccount
+
+AdminDash -> AdminDash: Refresh accounts table
+AdminDash -> AdminDash: Update metrics
+AdminDash -> Admin: Show success message\n"Account created"
+
+' ==================== VIEW TRANSACTIONS SEQUENCE ====================
+== Customer Views Transaction History ==
+
+actor Customer
+participant "CustomerDashboardFrame" as Dash
+participant "BankDatabaseService" as BankDB
+participant "Database" as DB
+
+Customer -> Dash: Navigate to "Transactions" tab
+
+Dash -> BankDB: getCustomerTransactions(customerId)
+
+BankDB -> DB: SELECT account_number FROM accounts\nWHERE customer_id = ?
+DB --> BankDB: account numbers list
+
+BankDB -> DB: SELECT * FROM transactions\nWHERE from_account IN (...) OR to_account IN (...)\nORDER BY timestamp DESC
+DB --> BankDB: transactions list
+
+BankDB --> Dash: List<BankTransaction>
+
+Dash -> Dash: Populate transactions table
+Dash -> Dash: Display transaction details\n(Txn ID, Date/Time, Type, From, To, Amount, Description)
+Dash --> Customer: Show transaction history
+
+' ==================== PASSWORD CHANGE SEQUENCE ====================
+== Customer Changes Password ==
+
+actor Customer
+participant "CustomerDashboardFrame" as Dash
+participant "AuthService" as Auth
+participant "PasswordValidator" as Validator
+participant "Database" as DB
+
+Customer -> Dash: Click "Change Password"
+Dash -> Dash: Show password change dialog
+Customer -> Dash: Enter old password
+Customer -> Dash: Enter new password
+Customer -> Dash: Confirm new password
+Customer -> Dash: Click "Change"
+
+Dash -> Dash: Validate: newPassword == confirmPassword
+
+alt Passwords match
+    Dash -> Validator: validate(newPassword)
+    Validator -> Validator: Check password strength
+    Validator --> Dash: ValidationResult
+    
+    alt New password valid
+        Dash -> Auth: changeCustomerPassword(customerId, oldPassword, newPassword)
+        
+        Auth -> DB: SELECT password FROM customers\nWHERE id = ?
+        DB --> Auth: hashedOldPassword
+        
+        Auth -> Auth: BCrypt.checkpw(oldPassword, hashedOldPassword)
+        
+        alt Old password correct
+            Auth -> Auth: BCrypt.hashpw(newPassword, BCrypt.gensalt())
+            Auth -> DB: UPDATE customers\nSET password = ?\nWHERE id = ?
+            DB --> Auth: password updated
+            Auth --> Dash: true (success)
+            
+            Dash -> Customer: Show success message\n"Password changed successfully"
+        else Old password incorrect
+            Auth --> Dash: false (failure)
+            Dash -> Customer: Show error "Old password incorrect"
+        end
+    else New password invalid
+        Validator --> Dash: ValidationResult (error message)
+        Dash -> Customer: Show error message
+    end
+else Passwords don't match
+    Dash -> Customer: Show error "Passwords do not match"
+end
+
+' ==================== ADMIN VIEWS DASHBOARD METRICS ====================
+== Admin Views Dashboard ==
+
+actor Admin
+participant "AdminDashboardFrame" as AdminDash
+participant "BankService" as BankService
+participant "Database" as DB
+
+Admin -> AdminDash: Login successful
+AdminDash -> AdminDash: Load dashboard
+
+AdminDash -> BankService: getTotalCustomers()
+BankService -> BankService: Count customers list
+BankService --> AdminDash: total customers count
+
+AdminDash -> BankService: getTotalAccounts()
+BankService -> BankService: Count accounts list
+BankService --> AdminDash: total accounts count
+
+AdminDash -> BankService: getTotalBalance()
+BankService -> BankService: Sum all account balances
+BankService --> AdminDash: total balance
+
+AdminDash -> BankService: getTransactionsTodayCount()
+BankService -> BankService: Filter transactions by today's date
+BankService --> AdminDash: today's transaction count
+
+AdminDash -> AdminDash: Update metric labels
+AdminDash --> Admin: Display dashboard with metrics
+
+@enduml
+

@@ -1,0 +1,254 @@
+@startuml VaultX_Bank_Architecture
+
+skinparam componentStyle rectangle
+skinparam roundcorner 10
+skinparam linetype ortho
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 10
+
+title VaultX Bank Management System - Architecture Diagram
+
+' ==================== PRESENTATION LAYER ====================
+package "Presentation Layer (UI)" {
+  
+  component [Welcome & Splash] as WelcomeApp {
+    [SplashScreenWindow]
+    [WelcomeFrame]
+  }
+  
+  component [Authentication UI] as AuthUI {
+    [LoginFrame]
+    [SignupFrame]
+    [ForgotPasswordFrame]
+  }
+  
+  component [Admin Dashboard] as AdminUI {
+    [AdminDashboardFrame]
+    note right: Full access to all\ncustomers, accounts,\nand transactions
+  }
+  
+  component [Customer Dashboard] as CustomerUI {
+    [CustomerDashboardFrame]
+    note right: Limited access to\nown accounts and\ntransactions
+  }
+  
+  component [Theme & Styling] as Theme {
+    [VaultXTheme]
+    note right: UI theming utilities\nand background images
+  }
+}
+
+' ==================== BUSINESS LOGIC LAYER ====================
+package "Business Logic Layer (Services)" {
+  
+  component [Authentication Service] as AuthService {
+    [AuthService]
+    [PasswordValidator]
+    [AuthResult]
+    note right: Handles user authentication\nPassword validation\nRole-based access control
+  }
+  
+  component [Banking Service] as BankService {
+    [BankDatabaseService]
+    [BankService]
+    note right: Account management\nTransaction processing\nBalance calculations
+  }
+  
+  component [Logging Service] as Logging {
+    [LoggerUtil]
+    note right: Centralized logging\nusing SLF4J
+  }
+}
+
+' ==================== DATA ACCESS LAYER ====================
+package "Data Access Layer" {
+  
+  component [Database Connection] as DBConn {
+    [DatabaseUtil]
+    note right: MySQL connection\nmanagement\nConnection pooling
+  }
+  
+  database "MySQL Database\n(vaultx)" as MySQL {
+    component "admins" as AdminsTable
+    component "customers" as CustomersTable
+    component "accounts" as AccountsTable
+    component "transactions" as TransactionsTable
+  }
+}
+
+' ==================== EXTERNAL DEPENDENCIES ====================
+package "External Libraries" {
+  component [BCrypt] as BCrypt {
+    note right: Password hashing\norg.mindrot.jbcrypt
+  }
+  
+  component [MySQL Connector] as MySQLConn {
+    note right: JDBC Driver\nmysql-connector-java
+  }
+  
+  component [SLF4J] as SLF4J {
+    note right: Logging Framework\nslf4j-api & slf4j-simple
+  }
+  
+  component [JFreeChart] as JFreeChart {
+    note right: Charts & Analytics\n(if used)
+  }
+}
+
+' ==================== DATA MODELS ====================
+package "Domain Models" {
+  component [Customer] as CustomerModel
+  component [BankAccount] as AccountModel
+  component [BankTransaction] as TransactionModel
+  component [AccountType] as AccountTypeEnum
+  component [TransactionType] as TransactionTypeEnum
+  component [Role] as RoleEnum
+}
+
+' ==================== LAYER CONNECTIONS ====================
+
+' Presentation to Business Logic
+WelcomeApp --> AuthUI : navigates to
+AuthUI --> AuthService : uses
+AuthUI --> BankService : uses
+AdminUI --> BankService : uses
+CustomerUI --> BankService : uses
+AuthUI --> Theme : uses
+AdminUI --> Theme : uses
+CustomerUI --> Theme : uses
+
+' Business Logic to Data Access
+AuthService --> DBConn : uses
+BankService --> DBConn : uses
+AuthService --> BCrypt : uses
+BankService --> BCrypt : uses (for password operations)
+
+' Data Access to Database
+DBConn --> MySQLConn : uses
+DBConn --> MySQL : connects to
+MySQLConn --> MySQL : JDBC connection
+
+' Business Logic to Models
+AuthService --> CustomerModel : creates/returns
+AuthService --> RoleEnum : uses
+BankService --> AccountModel : manages
+BankService --> TransactionModel : manages
+BankService --> AccountTypeEnum : uses
+BankService --> TransactionTypeEnum : uses
+
+' Services to Logging
+AuthService --> Logging : uses
+BankService --> Logging : uses
+DBConn --> Logging : uses
+Logging --> SLF4J : uses
+
+' ==================== DATA FLOW ====================
+
+note top of AuthUI
+  **Authentication Flow:**
+  1. User enters credentials
+  2. AuthService validates
+  3. Database query executed
+  4. Role determined
+  5. Appropriate dashboard shown
+end note
+
+note top of CustomerUI
+  **Customer Transaction Flow:**
+  1. Customer initiates transaction
+  2. BankDatabaseService validates
+  3. Database transaction begins
+  4. Balance updated
+  5. Transaction recorded
+  6. Dashboard refreshed
+end note
+
+note top of AdminUI
+  **Admin Management Flow:**
+  1. Admin performs action
+  2. BankService processes
+  3. Database updated
+  4. Tables refreshed
+  5. Metrics updated
+end note
+
+' ==================== SECURITY LAYER ====================
+package "Security Layer" {
+  component [Password Security] as PasswordSec {
+    [BCrypt Hashing]
+    [Password Validation]
+    note right: All passwords hashed\nbefore storage\nStrength validation enforced
+  }
+  
+  component [Access Control] as AccessControl {
+    [Role-Based Access]
+    [CAPTCHA Protection]
+    note right: Admin vs Customer\naccess restrictions\nCAPTCHA on login/signup
+  }
+  
+  component [SQL Injection Prevention] as SQLSec {
+    [PreparedStatements]
+    note right: All queries use\nPreparedStatements\nParameter binding
+  }
+}
+
+AuthService --> PasswordSec : uses
+AuthUI --> AccessControl : uses
+DBConn --> SQLSec : uses
+
+' ==================== ARCHITECTURE PATTERNS ====================
+
+note bottom of AuthService
+  **Singleton Pattern:**
+  - BankService.getInstance()
+  - BankDatabaseService.getInstance()
+  - Centralized instance management
+end note
+
+note bottom of BankService
+  **Service Layer Pattern:**
+  - Separation of concerns
+  - Business logic isolated
+  - Database abstraction
+end note
+
+note bottom of MySQL
+  **Database Schema:**
+  - 4 main tables
+  - Foreign key relationships
+  - Transaction support
+  - ACID compliance
+end note
+
+' ==================== DEPLOYMENT VIEW ====================
+package "Deployment Environment" {
+  component [Client Machine] as ClientMachine {
+    component [Java Application] as JavaApp
+    component [JVM] as JVM
+  }
+  
+  component [Database Server] as DBServer {
+    database MySQL
+  }
+}
+
+JavaApp --> JVM : runs on
+JavaApp --> MySQL : connects via JDBC
+
+' ==================== TECHNOLOGY STACK ====================
+package "Technology Stack" {
+  component "Java 22" as Java
+  component "Java Swing" as Swing
+  component "MySQL 8.0" as MySQLVersion
+  component "Maven" as Maven
+  component "XAMPP" as XAMPP
+}
+
+JavaApp --> Java : built with
+JavaApp --> Swing : UI framework
+MySQL --> MySQLVersion : database version
+JavaApp --> Maven : build tool
+MySQL --> XAMPP : deployment platform
+
+@enduml
+

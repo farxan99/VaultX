@@ -1,0 +1,86 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+
+actor "Admin" as admin
+actor "Customer" as customer
+
+actor "Database" as db
+actor "Bank" as bank
+
+package "VaultX Banking System" {
+    
+    usecase "Login" as UC1
+    usecase "Logout" as UC2
+    
+    ' Admin Use Cases
+    usecase "View Dashboard (KPIs)" as UC3
+    usecase "Manage Customers" as UC4
+    usecase "Manage Accounts" as UC5
+    usecase "View All Transactions" as UC6
+    
+    ' Customer Management Sub-cases
+    usecase "Add Customer" as UC4a
+    usecase "Edit Customer" as UC4b
+    usecase "Delete Customer" as UC4c
+    usecase "Promote to Admin" as UC4d
+    
+    ' Account Management Sub-cases
+    usecase "Open Account" as UC5a
+    usecase "Edit Account" as UC5b
+    usecase "Close Account" as UC5c
+    usecase "Delete Account" as UC5d
+    
+    ' Customer Use Cases
+    usecase "View Account Balance" as UC7
+    usecase "Deposit Funds" as UC8
+    usecase "Withdraw Funds" as UC9
+    usecase "Transfer Funds" as UC10
+    usecase "View Personal History" as UC11
+
+    ' Associations
+    admin -- UC1
+    admin -- UC2
+    admin -- UC3
+    admin -- UC4
+    admin -- UC5
+    admin -- UC6
+
+    customer -- UC1
+    customer -- UC2
+    customer -- UC7
+    customer -- UC8
+    customer -- UC9
+    customer -- UC10
+    customer -- UC11
+    
+    ' Secondary Actor Associations
+    UC1 -- db
+    UC4 -- db
+    UC5 -- db
+    UC6 -- db
+    UC7 -- db
+    UC11 -- db
+    
+    ' Transaction related
+    UC8 -- bank : Validates
+    UC8 -- db : Updates
+    
+    UC9 -- bank : Validates
+    UC9 -- db : Updates
+    
+    UC10 -- bank : Validates
+    UC10 -- db : Updates
+
+    ' Relationships
+    UC4 <|-- UC4a
+    UC4 <|-- UC4b
+    UC4 <|-- UC4c
+    UC4 <|-- UC4d
+
+    UC5 <|-- UC5a
+    UC5 <|-- UC5b
+    UC5 <|-- UC5c
+    UC5 <|-- UC5d
+}
+@enduml

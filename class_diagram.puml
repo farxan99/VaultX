@@ -1,0 +1,132 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam methodAttributeIconSize 0
+skinparam packageStyle rectangle
+
+package "Models" {
+    class Customer {
+        - int id
+        - String accountId
+        - String idCardNumber
+        - String name
+        - String email
+        - String phone
+        - String address
+        - Date createdAt
+        + Customer(...)
+        + getId(): int
+        + getName(): String
+        + getEmail(): String
+    }
+
+    class BankAccount {
+        - String accountNumber
+        - double balance
+        - boolean active
+        - LocalDate openedAt
+        - LocalDate closedAt
+        - String branchName
+        + BankAccount(...)
+        + deposit(double): void
+        + withdraw(double): void
+        + getBalance(): double
+    }
+
+    class BankTransaction {
+        - String id
+        - String fromAccount
+        - String toAccount
+        - double amount
+        - LocalDateTime timestamp
+        - String description
+        + BankTransaction(...)
+        + getType(): TransactionType
+    }
+
+    enum AccountType {
+        SAVINGS
+        CURRENT
+        FIXED_DEPOSIT
+    }
+
+    enum TransactionType {
+        DEPOSIT
+        WITHDRAW
+        TRANSFER_IN
+        TRANSFER_OUT
+        OPEN_ACCOUNT
+        CLOSE_ACCOUNT
+    }
+}
+
+package "Services" {
+    class BankDatabaseService {
+        - {static} BankDatabaseService INSTANCE
+        - BankDatabaseService()
+        + {static} getInstance(): BankDatabaseService
+        + getCustomerAccounts(int): List<BankAccount>
+        + deposit(String, double, String): boolean
+        + withdraw(String, double, String): boolean
+        + transfer(String, String, double, String): boolean
+        + openAccount(int, AccountType, double, String): BankAccount
+        + closeAccount(String): boolean
+    }
+
+    class CustomerDatabaseService {
+        - {static} CustomerDatabaseService instance
+        + {static} getInstance(): CustomerDatabaseService
+        + getAllCustomers(): List<Customer>
+        + createCustomer(...): Customer
+        + updateCustomer(...): boolean
+        + deleteCustomer(int): boolean
+    }
+
+    class AuthService {
+        + {static} authenticate(String, String): AuthResult
+        + {static} initializeDatabase(): void
+    }
+    
+    class DatabaseUtil {
+        + {static} getConnection(): Connection
+    }
+}
+
+package "UI" {
+    class LoginFrame {
+        + LoginFrame()
+        - handleLogin(): void
+    }
+
+    class AdminDashboardFrame {
+        + AdminDashboardFrame(String)
+    }
+
+    class CustomerDashboardFrame {
+        + CustomerDashboardFrame(int)
+    }
+}
+
+' Relationships
+BankAccount "1" -- "1" Customer : belongs to >
+BankAccount "1" -- "1" AccountType : has >
+BankTransaction "1" -- "1" TransactionType : has >
+
+BankDatabaseService ..> BankAccount : manages
+BankDatabaseService ..> BankTransaction : creates
+BankDatabaseService ..> DatabaseUtil : uses
+
+CustomerDatabaseService ..> Customer : manages
+CustomerDatabaseService ..> DatabaseUtil : uses
+
+AuthService ..> DatabaseUtil : uses
+
+LoginFrame ..> AuthService : uses
+LoginFrame ..> AdminDashboardFrame : creates
+LoginFrame ..> CustomerDashboardFrame : creates
+
+AdminDashboardFrame --> BankDatabaseService : uses
+AdminDashboardFrame --> CustomerDatabaseService : uses
+
+CustomerDashboardFrame --> BankDatabaseService : uses
+
+@enduml

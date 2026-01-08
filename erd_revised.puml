@@ -1,0 +1,58 @@
+@startuml
+
+' Definition of entities
+entity "Customer" as customer {
+  *id : INT <<PK>>
+  --
+  *account_id : VARCHAR(20) <<unique>>
+  *id_card_number : VARCHAR(20)
+  name : VARCHAR(100)
+  email : VARCHAR(100)
+  phone : VARCHAR(20)
+  address : TEXT
+  password : VARCHAR(255)
+  created_at : TIMESTAMP
+}
+
+entity "Account" as account {
+  *id : INT <<PK>>
+  --
+  *account_number : VARCHAR(20) <<unique>>
+  *customer_id : INT <<FK>>
+  account_type : VARCHAR(20)
+  balance : DECIMAL(15,2)
+  branch_name : VARCHAR(100)
+  is_active : BOOLEAN
+  opened_at : TIMESTAMP
+}
+
+entity "Transaction" as transaction {
+  *transaction_id : VARCHAR(50) <<PK>>
+  --
+  transaction_type : VARCHAR(20)
+  *from_account : VARCHAR(20)
+  *to_account : VARCHAR(20)
+  amount : DECIMAL(15,2)
+  timestamp : TIMESTAMP
+  description : TEXT
+}
+
+entity "Admin" as admin {
+  *id : INT <<PK>>
+  --
+  *username : VARCHAR(50)
+  password : VARCHAR(255)
+}
+
+' Relationships using Crow's Foot notation
+
+' One customer has zero or more accounts
+customer ||..|{ account : "owns"
+
+' One account can initiate many transactions
+account |o..o{ transaction : "initiates"
+
+' One account can receive many transactions
+account |o..o{ transaction : "receives"
+
+@enduml

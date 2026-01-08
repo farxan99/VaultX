@@ -1,0 +1,77 @@
+@startuml
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+
+actor "Customer" as User
+participant "CustomerDashboardFrame\n(UI)" as UI
+participant "BankDatabaseService" as Service
+database "MySQL Database" as DB
+
+== Money Transfer Scenario ==
+
+User -> UI : Select "Transfer" option
+UI -> UI : Show Transfer fields
+User -> UI : Enter ToAccount, Amount, Description
+User -> UI : Click "Process Transaction"
+
+activate UI
+    UI -> UI : Validate Inputs (Empty check, Amount > 0)
+    alt Invalid Input
+        UI --> User : Show Error Message "Invalid amounts/fields"
+    else Valid Input
+        UI -> Service : findAccount(ToAccount)
+        activate Service
+            Service -> DB : SELECT * FROM accounts WHERE account_number = ?
+            activate DB
+            DB --> Service : Result (Account Data)
+            deactivate DB
+            Service --> UI : BankAccount or null
+        deactivate Service
+        
+        alt Account Not Found
+            UI --> User : Show Error "Destination account not found"
+        else Account Found
+            UI -> Service : transfer(FromAccount, ToAccount, Amount, Desc)
+            activate Service
+                
+                note right of Service : Start DB Transaction
+                Service -> DB : setAutoCommit(false)
+                
+                group Transaction Block
+                    Service -> DB : SELECT balance FROM accounts WHERE account_number = FromAccount
+                    activate DB
+                    DB --> Service : Balance
+                    deactivate DB
+                    
+                    alt Insufficient Balance
+                         Service --> UI : return false
+                         UI --> User : Show Error "Insufficient Balance"
+                    else Sufficient Balance
+                         ' Update From Account
+                         Service -> DB : UPDATE accounts SET balance = balance - Amount WHERE ...
+                         
+                         ' Update To Account
+                         Service -> DB : UPDATE accounts SET balance = balance + Amount WHERE ...
+                         
+                         ' Record Outgoing Transaction
+                         Service -> DB : INSERT INTO transactions (..., 'TRANSFER_OUT', ...)
+                         
+                         ' Record Incoming Transaction
+                         Service -> DB : INSERT INTO transactions (..., 'TRANSFER_IN', ...)
+                         
+                         Service -> DB : commit()
+                         note right of Service : Commit Changes
+                         
+                         Service --> UI : return true
+                         UI --> User : Show Success Message
+                         
+                         UI -> UI : clearFields()
+                         UI -> UI : refreshAllData()
+                    end
+                end
+            deactivate Service
+        end
+    end
+deactivate UI
+
+@enduml

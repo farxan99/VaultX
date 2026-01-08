@@ -1,0 +1,186 @@
+@startuml VaultX_Bank_ERD
+
+skinparam linetype ortho
+skinparam roundcorner 10
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 10
+
+title VaultX Bank Management System - Entity Relationship Diagram (ERD)
+
+' ==================== ENTITIES ====================
+
+entity "admins" as admins {
+  * **id** : INT <<PK>>
+  --
+  * username : VARCHAR(64) <<UNIQUE, NOT NULL>>
+  * password : VARCHAR(255) <<NOT NULL>>
+  --
+  **Indexes:**
+  * PK: id
+  * UNIQUE: username
+}
+
+entity "customers" as customers {
+  * **id** : INT <<PK>>
+  --
+  * account_id : VARCHAR(6) <<UNIQUE, NOT NULL>>
+  * username : VARCHAR(64) <<UNIQUE, NULL>>
+  * name : VARCHAR(120) <<NOT NULL>>
+  * email : VARCHAR(120) <<UNIQUE, NOT NULL>>
+  * phone : VARCHAR(40) <<NULL>>
+  * address : VARCHAR(255) <<NULL>>
+  * password : VARCHAR(255) <<NOT NULL>>
+  --
+  **Indexes:**
+  * PK: id
+  * UNIQUE: account_id
+  * UNIQUE: email
+  * UNIQUE: username (if not null)
+  --
+  **Notes:**
+  * account_id: Auto-generated 6-digit number
+  * password: BCrypt hashed
+  * Login via: account_id, email, or username
+}
+
+entity "accounts" as accounts {
+  * **id** : INT <<PK>>
+  --
+  * account_number : VARCHAR(20) <<UNIQUE, NOT NULL>>
+  * customer_id : INT <<FK, NOT NULL>>
+  * account_type : VARCHAR(20) <<NOT NULL>>
+  * balance : DECIMAL(15,2) <<DEFAULT 0.00>>
+  * is_active : BOOLEAN <<DEFAULT TRUE>>
+  * branch_name : VARCHAR(100) <<NULL>>
+  * opened_at : DATE <<NULL>>
+  * closed_at : DATE <<NULL>>
+  --
+  **Indexes:**
+  * PK: id
+  * UNIQUE: account_number
+  * FK: customer_id -> customers.id
+  --
+  **Constraints:**
+  * ON DELETE CASCADE
+  --
+  **Account Types:**
+  * SAVINGS
+  * CURRENT
+  * FIXED_DEPOSIT
+}
+
+entity "transactions" as transactions {
+  * **id** : INT <<PK>>
+  --
+  * transaction_id : VARCHAR(20) <<UNIQUE, NOT NULL>>
+  * transaction_type : VARCHAR(20) <<NOT NULL>>
+  * from_account : VARCHAR(20) <<NULL>>
+  * to_account : VARCHAR(20) <<NULL>>
+  * amount : DECIMAL(15,2) <<NOT NULL>>
+  * description : VARCHAR(255) <<NULL>>
+  * timestamp : DATETIME <<DEFAULT CURRENT_TIMESTAMP>>
+  --
+  **Indexes:**
+  * PK: id
+  * UNIQUE: transaction_id
+  --
+  **Transaction Types:**
+  * DEPOSIT
+  * WITHDRAW
+  * TRANSFER_IN
+  * TRANSFER_OUT
+  * OPEN_ACCOUNT
+  * CLOSE_ACCOUNT
+  --
+  **Notes:**
+  * from_account: NULL for deposits
+  * to_account: NULL for withdrawals
+  * Both set for transfers
+}
+
+' ==================== RELATIONSHIPS ====================
+
+customers ||--o{ accounts : "has"
+accounts ||--o{ transactions : "generates (from_account)"
+accounts ||--o{ transactions : "generates (to_account)"
+
+' Relationship details
+customers {
+  One customer can have many accounts
+  (1:N relationship)
+}
+
+accounts {
+  One account can have many transactions
+  (as source or destination)
+  (1:N relationship)
+}
+
+' ==================== NOTES ====================
+
+note right of customers
+  **Customer Entity:**
+  - Primary identifier: id (auto-increment)
+  - Login identifiers: account_id, email, username
+  - Password stored as BCrypt hash
+  - account_id is 6-digit unique identifier
+end note
+
+note right of accounts
+  **Account Entity:**
+  - Linked to customer via customer_id (FK)
+  - account_number format: AC-XXXXX
+  - Account can be active or inactive
+  - Balance stored as DECIMAL for precision
+  - Supports multiple account types per customer
+end note
+
+note right of transactions
+  **Transaction Entity:**
+  - Records all financial operations
+  - transaction_id format: T-XXXXX
+  - from_account and to_account reference
+    account_number (not FK for flexibility)
+  - Timestamp auto-generated
+  - Complete audit trail
+end note
+
+note right of admins
+  **Admin Entity:**
+  - Separate authentication table
+  - Username-based login only
+  - Password stored as BCrypt hash
+  - No foreign key relationships
+end note
+
+' ==================== ATTRIBUTE DETAILS ====================
+
+note bottom of customers
+  **Key Attributes:**
+  • account_id: 6-digit unique identifier (e.g., "123456")
+  • username: Optional, can be NULL
+  • email: Required, must be unique
+  • password: BCrypt hashed, never stored in plain text
+end note
+
+note bottom of accounts
+  **Key Attributes:**
+  • account_number: Unique identifier (e.g., "AC-10001")
+  • customer_id: Foreign key to customers.id
+  • account_type: Enum value (SAVINGS, CURRENT, FIXED_DEPOSIT)
+  • balance: Decimal with 2 decimal places
+  • is_active: Boolean flag for account status
+end note
+
+note bottom of transactions
+  **Key Attributes:**
+  • transaction_id: Unique identifier (e.g., "T-00001")
+  • transaction_type: Enum value
+  • from_account/to_account: Account numbers (string references)
+  • amount: Decimal with 2 decimal places
+  • timestamp: Auto-generated on insert
+end note
+
+@enduml
+

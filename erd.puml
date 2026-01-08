@@ -1,0 +1,54 @@
+@startuml
+skinparam linetype ortho
+
+entity "admins" {
+  *id : INT <<PK>>
+  --
+  *username : VARCHAR(50) <<UNIQUE>>
+  *password : VARCHAR(255)
+}
+
+entity "customers" {
+  *id : INT <<PK>>
+  --
+  *account_id : VARCHAR(20) <<UNIQUE>>
+  *id_card_number : VARCHAR(20) <<UNIQUE>>
+  username : VARCHAR(50)
+  *name : VARCHAR(100)
+  *email : VARCHAR(100) <<UNIQUE>>
+  phone : VARCHAR(20)
+  address : TEXT
+  *password : VARCHAR(255)
+  created_at : TIMESTAMP
+}
+
+entity "accounts" {
+  *id : INT <<PK>>
+  --
+  *account_number : VARCHAR(20) <<UNIQUE>>
+  *customer_id : INT <<FK>>
+  *account_type : VARCHAR(20)
+  balance : DECIMAL(15,2)
+  branch_name : VARCHAR(100)
+  is_active : BOOLEAN
+  opened_at : TIMESTAMP
+  closed_at : DATE
+}
+
+entity "transactions" {
+  *transaction_id : VARCHAR(50) <<PK>>
+  --
+  *transaction_type : VARCHAR(20)
+  from_account : VARCHAR(20)
+  to_account : VARCHAR(20)
+  *amount : DECIMAL(15,2)
+  timestamp : TIMESTAMP
+  description : TEXT
+}
+
+' Relationships
+customers ||..o{ accounts : "has"
+accounts |o..o{ transactions : "sends"
+accounts |o..o{ transactions : "receives"
+
+@enduml

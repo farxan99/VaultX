@@ -1,0 +1,46 @@
+@startuml
+skinparam componentStyle uml2
+
+package "Presentation Layer (Swing UI)" {
+    component "LoginFrame" as Login
+    component "AdminDashboard" as AdminDash
+    component "CustomerDashboard" as UserDash
+    component "SignupFrame" as Signup
+}
+
+package "Business Logic Layer" {
+    component "AuthService" as Auth
+    component "BankDatabaseService" as BankService
+    component "CustomerDatabaseService" as CustomerService
+    
+    interface "Admin Operations" as AdminOps
+    interface "Customer Operations" as CustomerOps
+    
+    BankService -up- AdminOps
+    CustomerService -up- AdminOps
+    BankService -up- CustomerOps
+}
+
+package "Data Access Layer" {
+    component "DatabaseUtil" as DBUtil
+    component "JDBC Driver" as JDBC
+}
+
+database "MySQL Database" as DB
+
+' Presentation to Business
+Login ..> Auth : uses
+AdminDash ..> AdminOps : uses
+UserDash ..> CustomerOps : uses
+Signup ..> Auth : uses
+
+' Business to Data Access
+Auth ..> DBUtil
+BankService ..> DBUtil
+CustomerService ..> DBUtil
+
+' Data Access to Database
+DBUtil ..> JDBC
+JDBC ..> DB : TCP/IP (Port 3306)
+
+@enduml
