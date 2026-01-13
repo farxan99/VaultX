@@ -7,12 +7,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import org.mindrot.jbcrypt.BCrypt;
 
-/**
- * Authentication helper for admin and customer logins backed by MySQL (XAMPP).
- * 
- * This service automatically initializes the database schema and creates
- * default admin accounts.
- */
+
 public final class AuthService {
 
     public enum Role {
