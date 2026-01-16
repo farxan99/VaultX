@@ -8,18 +8,19 @@ import java.awt.*;
 public class WelcomeApp { 
 
     public static void main(String[] args) {
-        AuthService.initializeDatabase();
+        // Initialize Core Infrastructure
+        com.bank.brewdreamwelcome.core.ThemeManager.initialize();
+        // Firebase disabled until serviceAccountKey.json is added to src/main/resources/
+        // com.bank.brewdreamwelcome.config.FirebaseConfig.initialize();
 
         SwingUtilities.invokeLater(() -> {
-            try {
-                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-            } catch (Exception ignored) {
-            }
-
             SplashScreenWindow splash = new SplashScreenWindow();
             splash.showSplash(() -> {
-                WelcomeFrame welcome = new WelcomeFrame();
-                welcome.setVisible(true);
+                // Determine if we should show Login or Dashboard
+                // In production, always start with Login
+                // Start with Modern Login
+                com.bank.brewdreamwelcome.ui.views.ModernLoginView login = new com.bank.brewdreamwelcome.ui.views.ModernLoginView();
+                login.setVisible(true);
             });
         });
     }

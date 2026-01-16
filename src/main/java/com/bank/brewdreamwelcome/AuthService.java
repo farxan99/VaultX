@@ -18,10 +18,24 @@ public final class AuthService {
     public static final class AuthResult {
         public final Role role;
         public final Integer customerId; // only set for customers
+        public final boolean success;
+        public final String message;
+        public final String errorCode;
 
-        private AuthResult(Role role, Integer customerId) {
+        private AuthResult(Role role, Integer customerId, boolean success, String message, String errorCode) {
             this.role = role;
             this.customerId = customerId;
+            this.success = success;
+            this.message = message;
+            this.errorCode = errorCode;
+        }
+
+        public static AuthResult success(Role role, Integer customerId) {
+            return new AuthResult(role, customerId, true, "Login successful", null);
+        }
+
+        public static AuthResult failure(String message, String errorCode) {
+            return new AuthResult(null, null, false, message, errorCode);
         }
     }
 
@@ -40,29 +54,92 @@ public final class AuthService {
      * - For customers: account_id (6-digit), email, username, or id_card_number
      */
     public static AuthResult authenticate(String identifier, String password) {
-        if (identifier == null || identifier.isBlank()
-                || password == null || password.isBlank()) {
-            return null;
+        if (identifier == null || identifier.isBlank()) {
+            return AuthResult.failure("Username/Account ID is required", "MISSING_ID");
+        }
+        if (password == null || password.isBlank()) {
+            return AuthResult.failure("Password is required", "MISSING_PASSWORD");
         }
 
-        // Try admin authentication first (by username)
+        // 1. Try admin authentication first
         if (isValidAdmin(identifier, password)) {
-            return new AuthResult(Role.ADMIN, null);
+            return AuthResult.success(Role.ADMIN, null);
         }
 
-        // Try customer authentication (by account_id, email, username, or
-        // id_card_number)
-        Integer customerId = findCustomerId(identifier, password);
-        if (customerId != null) {
-            return new AuthResult(Role.CUSTOMER, customerId);
-        }
+        // 2. Try customer authentication
+        return authenticateCustomer(identifier, password);
+    }
 
-        return null;
+    private static AuthResult authenticateCustomer(String identifier, String password) {
+        String sql = "SELECT id, password, failed_attempts, locked_until FROM customers " +
+                     "WHERE account_id = ? OR email = ? OR username = ? OR id_card_number = ?";
+        
+        try (Connection con = com.bank.brewdreamwelcome.config.DatabaseConfig.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            
+            ps.setString(1, identifier);
+            ps.setString(2, identifier);
+            ps.setString(3, identifier);
+            ps.setString(4, identifier);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    int id = rs.getInt("id");
+                    String storedHash = rs.getString("password");
+                    int failedAttempts = rs.getInt("failed_attempts");
+                    java.sql.Timestamp lockedUntil = rs.getTimestamp("locked_until");
+
+                    // Check if account is locked
+                    if (lockedUntil != null && lockedUntil.after(new java.util.Date())) {
+                        LoggerUtil.error("Login attempt on locked account: " + identifier, null);
+                        return AuthResult.failure("Account is temporarily locked. Please try again after 30 minutes.", "ACCOUNT_LOCKED");
+                    }
+
+                    if (BCrypt.checkpw(password, storedHash)) {
+                        // Success: Reset failed attempts
+                        resetFailedAttempts(id);
+                        return AuthResult.success(Role.CUSTOMER, id);
+                    } else {
+                        // Failure: Increment failed attempts
+                        incrementFailedAttempts(id, failedAttempts);
+                        return AuthResult.failure("Invalid password. Please try again.", "INVALID_PASSWORD");
+                    }
+                } else {
+                    return AuthResult.failure("Account not found. Please check your details.", "ACCOUNT_NOT_FOUND");
+                }
+            }
+        } catch (SQLException ex) {
+            LoggerUtil.error("Error finding customer: " + ex.getMessage(), ex);
+            return AuthResult.failure("A system error occurred. Please try again later.", "SYSTEM_ERROR");
+        }
+    }
+
+    private static void resetFailedAttempts(int customerId) throws SQLException {
+        String sql = "UPDATE customers SET failed_attempts = 0, locked_until = NULL WHERE id = ?";
+        try (Connection con = com.bank.brewdreamwelcome.config.DatabaseConfig.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, customerId);
+            ps.executeUpdate();
+        }
+    }
+
+    private static void incrementFailedAttempts(int customerId, int currentAttempts) throws SQLException {
+        int newAttempts = currentAttempts + 1;
+        String sql = "UPDATE customers SET failed_attempts = ? " + 
+                     (newAttempts >= 5 ? ", locked_until = DATE_ADD(NOW(), INTERVAL 30 MINUTE) " : "") +
+                     "WHERE id = ?";
+        
+        try (Connection con = com.bank.brewdreamwelcome.config.DatabaseConfig.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, newAttempts);
+            ps.setInt(2, customerId);
+            ps.executeUpdate();
+        }
     }
 
     private static boolean isValidAdmin(String username, String password) {
         String sql = "SELECT password FROM admins WHERE BINARY username = ? LIMIT 1";
-        try (Connection con = DatabaseUtil.getConnection();
+        try (Connection con = com.bank.brewdreamwelcome.config.DatabaseConfig.getConnection();
                 PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setString(1, username);
             try (ResultSet rs = ps.executeQuery()) {
@@ -96,7 +173,8 @@ public final class AuthService {
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS admins ("
                     + "id INT AUTO_INCREMENT PRIMARY KEY, "
                     + "username VARCHAR(50) UNIQUE NOT NULL, "
-                    + "password VARCHAR(255) NOT NULL)");
+                    + "password VARCHAR(255) NOT NULL, "
+                    + "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
 
             // Create customers table (added id_card_number)
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS customers ("
@@ -134,7 +212,8 @@ public final class AuthService {
                     + "timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
                     + "description TEXT)");
 
-            // Insert specific default admins if not exist
+            // Insert default admin accounts if not exist
+            createDefaultAdmin(con, "admin", "admin123");  // PRIMARY ADMIN
             createDefaultAdmin(con, "Farxan11", "F@rxan11");
             createDefaultAdmin(con, "Hasnain22", "H@snain22");
             createDefaultAdmin(con, "SampleAdmin33", "S@mpleAdmin33");
@@ -166,38 +245,12 @@ public final class AuthService {
         }
     }
 
-    private static Integer findCustomerId(String identifier, String password) {
-        // Updated to check id_card_number as well
-        String sql = "SELECT id, password FROM customers WHERE account_id = ? OR email = ? OR username = ? OR id_card_number = ?";
-        try (Connection con = DatabaseUtil.getConnection();
-                PreparedStatement ps = con.prepareStatement(sql)) {
-            ps.setString(1, identifier);
-            ps.setString(2, identifier);
-            ps.setString(3, identifier);
-            ps.setString(4, identifier);
-
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    String storedHash = rs.getString("password");
-                    if (BCrypt.checkpw(password, storedHash)) {
-                        return rs.getInt("id");
-                    }
-                }
-            }
-        } catch (SQLException ex) {
-            LoggerUtil.error("Error finding customer: " + ex.getMessage(), ex);
-        }
-        return null;
-    }
-
     /**
      * Promote a customer to an admin.
-     * Effectively creates a new admin record with the same username and hashed
-     * password.
      */
     public static boolean promoteToAdmin(String username, String hashedPassword) {
         String sql = "INSERT INTO admins (username, password) VALUES (?, ?)";
-        try (Connection con = DatabaseUtil.getConnection();
+        try (Connection con = com.bank.brewdreamwelcome.config.DatabaseConfig.getConnection();
                 PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setString(1, username);
             ps.setString(2, hashedPassword);

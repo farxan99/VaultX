@@ -18,24 +18,13 @@ import java.sql.SQLException;
  */
 public final class DatabaseUtil {
 
-    private static final String URL =
-            "jdbc:mysql://localhost:3306/vaultx?useSSL=false&serverTimezone=UTC";
-    private static final String USER = "root";
-    private static final String PASSWORD = "";
-
-    static {
-        try {
-            Class.forName("com.mysql.cj.jdbc.Driver");
-        } catch (ClassNotFoundException e) {
-            LoggerUtil.error("MySQL JDBC driver not found. Add mysql-connector-java to the classpath.", e);
-        }
-    }
+    // Hardcoded credentials and driver loading are now handled by DatabaseConfig
 
     private DatabaseUtil() {
     }
 
     public static Connection getConnection() throws SQLException {
-        return DriverManager.getConnection(URL, USER, PASSWORD);
+        return com.bank.brewdreamwelcome.config.DatabaseConfig.getConnection();
     }
 }
 
